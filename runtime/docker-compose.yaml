@@ -1,0 +1,8 @@
+version: '2.4'
+services:
+  container-monitoring-service:
+   container_name: container-monitoring-service
+   image: container-monitoring-service:0.0.1
+   volumes:
+      - './data:/home/app/logs'
+   mem_limit: 50mb
