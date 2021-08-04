@@ -4,5 +4,6 @@ services:
    container_name: container-monitoring-service
    image: container-monitoring-service:0.0.1
    volumes:
-      - './data:/home/app/logs'
+      - ./data:/home/app/logs:rw
+      - /var/run/docker.sock:/var/run/docker.sock:ro
    mem_limit: 50mb
