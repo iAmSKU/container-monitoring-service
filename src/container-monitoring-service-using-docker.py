@@ -9,14 +9,17 @@ import tarfile
 import csv
 import signal
 import sys
-
 import docker
+import logging
+
+from MetrixUtil import *
 
 logFilePathRoot = "/home/app/logs/CCReports/"
 logFilePathRootBackup = "/home/app/logs/CCReportsBackup/"
-runningThread = True
 characterList = ['/']
+intervalInSecond = 3
 
+logger = logging.getLogger(__name__)
 
 class ContainerMonitoring:
 
@@ -50,7 +53,7 @@ class ContainerMonitoring:
         with tarfile.open(output_filename, "w:gz") as tar:
             tar.add(source_dir, arcname=os.path.basename(source_dir))
 
-    def FetchContainerStatistics(self, intervalInSecond):
+    def FetchContainerStatistics(self):
         print("Inside FetchContainerStatistics...")
         containerDict = {}
         client = docker.from_env()
@@ -75,26 +78,83 @@ class ContainerMonitoring:
 
     def writeContainerStatistics(self, containerName, statsObj):
         print("Inside writeContainerStatistics...")
+        # print(statsObj)
         try:
             logFilePath = logFilePathRoot + containerName + ".log"
             file = open(logFilePath, "a")
             if not os.path.exists(logFilePath):
                 statistics = "datetime,container-id,container-name,cpu-usages,memory-usages,memory-limit,memory-percentage,net-input,net-output,block-input,block-output,pid"
             else:
+                r = self.stats(statsObj)
+                # datetime
                 statistics = statsObj['read'] + ","
+                # container id
                 statistics = statistics + statsObj['id'] + ","
-                statistics = statistics + self.trimCharacters(statsObj['name'])
+                # container name
+                statistics = statistics + self.trimCharacters(statsObj['name']) + ","
+                # CPU usages
+                statistics = statistics + r.get("cpu_percent") + ","
+                # memory usages
+                statistics = statistics + r.get("mem_current") + ","
+                # memory limit
+                statistics = statistics + r.get("mem_total") + ","
+                # memory percentage
+                statistics = statistics + r.get("mem_percent") + ","
+                # net input
+                statistics = statistics + r.get("net_rx") + ","
+                # net output
+                statistics = statistics + r.get("net_tx") + ","
+                # block input
+                statistics = statistics + r.get("blk_read") + ","
+                # block output
+                statistics = statistics + r.get("blk_write") + ","
+                # PID
+                statistics = statistics + str(statsObj['pids_stats']['current'])  
+                            
             file.write(statistics + "\n")
             file.close()
             return True
         except Exception as newExp:
-            print("Failed to write statistics.")
+            print("Failed to write statistics.", newExp)
             return False
 
     def trimCharacters(self, input):
         for item in characterList:
                 input = input.replace(item, '')
         return input
+    
+    def byteToMegaByte(self, input):
+        input = input / (1024 * 1024)
+        return str(input)
+    
+    def stats(self, x):
+        cpu_total = 0.0
+        cpu_system = 0.0
+        cpu_percent = 0.0
+        
+        #for x in self.d.stats(self.container_id, decode=True, stream=True):
+        blk_read, blk_write = calculate_blkio_bytes(x)
+        net_r, net_w = calculate_network_bytes(x)
+        mem_current = x["memory_stats"]["usage"]
+        mem_total = x["memory_stats"]["limit"]
+
+        try:
+            cpu_percent, cpu_system, cpu_total = calculate_cpu_percent2(x, cpu_total, cpu_system)
+        except KeyError as e:
+            logger.error("error while getting new CPU stats: %r, falling back")
+            cpu_percent = calculate_cpu_percent(x)
+
+        r = {
+            "cpu_percent": str(cpu_percent),
+            "mem_current": self.byteToMegaByte(mem_current),
+            "mem_total": self.byteToMegaByte(x["memory_stats"]["limit"]),
+            "mem_percent": self.byteToMegaByte((mem_current / mem_total) * 100.0),
+            "blk_read": self.byteToMegaByte(blk_read),
+            "blk_write": self.byteToMegaByte(blk_write),
+            "net_rx": self.byteToMegaByte(net_r),
+            "net_tx": self.byteToMegaByte(net_w),
+        }
+        return r
 
 
 if __name__ == "__main__":
@@ -105,4 +165,4 @@ if __name__ == "__main__":
     if cMonitoring.Setup():
         print('Capturing container reports...')
         # Get the the running container from the predefined list
-        cMonitoring.FetchContainerStatistics(3)
+        cMonitoring.FetchContainerStatistics()

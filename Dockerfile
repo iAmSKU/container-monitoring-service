@@ -5,10 +5,8 @@ COPY src/ /home/app
 
 WORKDIR /home/app/
 
-RUN pip install six docker \
-    && rm -rf /root/.cache/pip
+#RUN pip install six docker \
+#    && rm -rf /root/.cache/pip
 
-RUN ls
-
-CMD [ "python3" ,"-u", "container-monitoring-service.py" ]
+CMD [ "python3" ,"-u", "container-monitoring-service-using-docker.py" ]
 
