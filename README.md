@@ -1,6 +1,8 @@
 # container-monitoring-service
 Identify Containers
+
 Collect basic information of the containers
+
 Periodically collect docker stats metrics
 
 # @cortesy some algorithm reference are taken from
@@ -11,4 +13,5 @@ sudo ./build.sh
 
 # How to run
 cd runtime
+
 sudo docker-compose up
